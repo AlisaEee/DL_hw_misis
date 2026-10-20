@@ -1,0 +1,320 @@
+import os
+import numpy as np
+
+from ..layers import *
+from ..layer_utils import *
+
+
+class TwoLayerNet(object):
+    """
+    Двухслойная полносвязная нейронная сеть с нелинейностью ReLU и функцией
+    потерь softmax, построенная по модульному принципу (из отдельных слоёв).
+    Предполагается, что размерность входа равна D, размер скрытого слоя — H,
+    а классификация выполняется по C классам.
+
+    Архитектура сети: affine - relu - affine - softmax.
+
+    Обратите внимание: этот класс не реализует градиентный спуск — вместо
+    этого он работает в паре с отдельным объектом Solver, который отвечает
+    за оптимизацию.
+
+    Обучаемые параметры модели хранятся в словаре self.params, который
+    сопоставляет именам параметров массивы numpy.
+    """
+
+    def __init__(
+            self,
+            input_dim=3 * 32 * 32,
+            hidden_dim=100,
+            num_classes=10,
+            weight_scale=1e-3,
+            reg=0.0,
+    ):
+        """
+        Инициализирует новую сеть.
+
+        Входные данные:
+        - input_dim: целое число, размер входа
+        - hidden_dim: целое число, размер скрытого слоя
+        - num_classes: целое число, количество классов
+        - weight_scale: скаляр, стандартное отклонение для случайной
+          инициализации весов.
+        - reg: скаляр, коэффициент L2-регуляризации.
+        """
+        self.params = {}
+        self.reg = reg
+
+        ############################################################################
+        # TODO: Инициализируйте веса и смещения двухслойной сети. Веса             #
+        # инициализируйте из нормального (гауссова) распределения с центром        #
+        # в 0.0 и стандартным отклонением weight_scale, а смещения — нулями.       #
+        # Все веса и смещения храните в словаре self.params: веса и смещения       #
+        # первого слоя — под ключами 'W1' и 'b1', веса и смещения второго          #
+        # слоя — под ключами 'W2' и 'b2'.                                          #
+        ############################################################################
+        self.params['W1'] = np.random.normal(0.0, weight_scale, (input_dim, hidden_dim))
+        self.params['b1'] = np.zeros(hidden_dim)
+
+        self.params['W2'] = np.random.normal(0.0, weight_scale, (hidden_dim, num_classes))
+        self.params['b2'] = np.zeros(num_classes)
+        ############################################################################
+        #                            КОНЕЦ ВАШЕГО КОДА                             #
+        ############################################################################
+
+    def loss(self, X, y=None):
+        """
+        Вычисляет значение функции потерь и градиент для мини-батча данных.
+
+        Входные данные:
+        - X: массив входных данных формы (N, d_1, ..., d_k)
+        - y: массив меток формы (N,); y[i] — метка для X[i].
+
+        Возвращает:
+        Если y равен None, выполняет прямой проход модели в режиме тестирования
+        и возвращает:
+        - scores: массив формы (N, C) с оценками классов, где scores[i, c] —
+          оценка класса c для X[i].
+
+        Если y не равен None, выполняет прямой и обратный проходы в режиме
+        обучения и возвращает кортеж из:
+        - loss: скаляр, значение функции потерь
+        - grads: словарь с теми же ключами, что и self.params, сопоставляющий
+          именам параметров градиенты функции потерь по этим параметрам.
+        """
+        scores = None
+        ############################################################################
+        # TODO: Реализуйте прямой проход двухслойной сети: вычислите оценки        #
+        # классов для X и сохраните их в переменной scores.                        #
+        ############################################################################
+        W1, b1 = self.params['W1'], self.params['b1']
+        W2, b2 = self.params['W2'], self.params['b2']
+
+        out_afn1, cache_afn1 = affine_forward(X, W1, b1)
+        out_relu, cache_relu = relu_forward(out_afn1)
+
+        scores, cache_afn2 = affine_forward(out_relu, W2, b2)
+        ############################################################################
+        #                            КОНЕЦ ВАШЕГО КОДА                             #
+        ############################################################################
+
+        # Если y равен None, мы в режиме тестирования — просто возвращаем scores
+        if y is None:
+            return scores
+
+        loss, grads = 0, {}
+        ############################################################################
+        # TODO: Реализуйте обратный проход двухслойной сети. Сохраните значение    #
+        # функции потерь в переменной loss, а градиенты — в словаре grads.         #
+        # Потери на данных (data loss) вычисляйте с помощью softmax и следите,     #
+        # чтобы grads[k] содержал градиенты для self.params[k]. Не забудьте        #
+        # добавить L2-регуляризацию!                                               #
+        #                                                                          #
+        # ПРИМЕЧАНИЕ: чтобы ваша реализация совпала с эталонной и прошла           #
+        # проверки в ноутбуке, L2-регуляризация должна включать множитель 0.5      #
+        # (он упрощает выражение для градиента).                                   #
+        ############################################################################
+        data_loss, dscores = softmax_loss(scores, y)
+
+        reg_loss = 0.5 * self.reg * (np.sum(W1 * W1) + np.sum(W2 * W2))
+        loss = data_loss + reg_loss
+
+        dout_relu, dW2, db2 = affine_backward(dscores, cache_afn2)
+
+        dout_afn1 = relu_backward(dout_relu, cache_relu)
+
+        dx, dW1, db1 = affine_backward(dout_afn1, cache_afn1)
+
+        grads['W2'] = dW2 + self.reg * W2
+        grads['b2'] = db2
+        grads['W1'] = dW1 + self.reg * W1
+        grads['b1'] = db1
+        ############################################################################
+        #                            КОНЕЦ ВАШЕГО КОДА                             #
+        ############################################################################
+
+        return loss, grads
+
+    def save(self, fname):
+        """Сохраняет параметры модели."""
+        fpath = os.path.join(os.path.dirname(__file__), "../saved/", fname)
+        params = self.params
+        np.save(fpath, params)
+        print(fname, "сохранён.")
+
+    def load(self, fname):
+        """Загружает параметры модели."""
+        fpath = os.path.join(os.path.dirname(__file__), "../saved/", fname)
+        if not os.path.exists(fpath):
+            print(fname, "не найден.")
+            return False
+        else:
+            params = np.load(fpath, allow_pickle=True).item()
+            self.params = params
+            print(fname, "загружен.")
+            return True
+
+
+class FullyConnectedNet(object):
+    """Многослойная полносвязная нейронная сеть.
+
+    Сеть содержит произвольное число скрытых слоёв, нелинейности ReLU и
+    функцию потерь softmax. Для сети из L слоёв архитектура имеет вид
+
+    {affine - relu} x (L - 1) - affine - softmax
+
+    где блок {...} повторяется L - 1 раз.
+
+    Обучаемые параметры хранятся в словаре self.params и обучаются
+    с помощью класса Solver.
+    """
+
+    def __init__(
+        self,
+        hidden_dims,
+        input_dim=3 * 32 * 32,
+        num_classes=10,
+        reg=0.0,
+        weight_scale=1e-2,
+        dtype=np.float32,
+    ):
+        """Инициализирует новый объект FullyConnectedNet.
+
+        Входные данные:
+        - hidden_dims: список целых чисел — размеры всех скрытых слоёв.
+        - input_dim: целое число, размер входа.
+        - num_classes: целое число, количество классов.
+        - reg: скаляр, коэффициент L2-регуляризации.
+        - weight_scale: скаляр, стандартное отклонение для случайной
+            инициализации весов.
+        - dtype: тип данных numpy; все вычисления будут выполняться в этом
+            типе. float32 работает быстрее, но менее точен, поэтому для
+            численной проверки градиента используйте float64.
+        """
+        self.reg = reg
+        self.num_layers = 1 + len(hidden_dims)
+        self.dtype = dtype
+        self.params = {}
+
+        ############################################################################
+        # TODO: Инициализируйте параметры сети и сохраните все значения в          #
+        # словаре self.params. Веса и смещения первого слоя храните в W1 и b1,     #
+        # второго — в W2 и b2 и т. д. Веса инициализируйте из нормального          #
+        # распределения с центром в 0 и стандартным отклонением weight_scale.      #
+        # Смещения инициализируйте нулями.                                         #
+        ############################################################################
+        self.params['W1'] = np.random.normal(loc=0.0, scale=weight_scale, size=(input_dim, hidden_dims[0]))
+        self.params['b1'] = np.zeros(hidden_dims[0])
+        for i in range(1, self.num_layers - 1):
+            self.params[f'W{i+1}'] = np.random.normal(loc=0.0, scale=weight_scale, size=(hidden_dims[i-1], hidden_dims[i]))
+            self.params[f'b{i+1}'] = np.zeros(hidden_dims[i])
+        self.params[f'W{self.num_layers}'] = np.random.normal(loc=0.0, scale=weight_scale, size=(hidden_dims[-1], num_classes))
+        self.params[f'b{self.num_layers}'] = np.zeros(num_classes)
+        ############################################################################
+        #                            КОНЕЦ ВАШЕГО КОДА                             #
+        ############################################################################
+
+        # Приводим все параметры к нужному типу данных.
+        for k, v in self.params.items():
+            self.params[k] = v.astype(dtype)
+
+    def loss(self, X, y=None):
+        """Вычисляет значение функции потерь и градиент для полносвязной сети.
+
+        Входные данные:
+        - X: массив входных данных формы (N, d_1, ..., d_k)
+        - y: массив меток формы (N,); y[i] — метка для X[i].
+
+        Возвращает:
+        Если y равен None, выполняет прямой проход модели в режиме тестирования
+        и возвращает:
+        - scores: массив формы (N, C) с оценками классов, где scores[i, c] —
+            оценка класса c для X[i].
+
+        Если y не равен None, выполняет прямой и обратный проходы в режиме
+        обучения и возвращает кортеж из:
+        - loss: скаляр, значение функции потерь
+        - grads: словарь с теми же ключами, что и self.params, сопоставляющий
+            именам параметров градиенты функции потерь по этим параметрам.
+        """
+        X = X.astype(self.dtype)
+        mode = "test" if y is None else "train"
+
+        scores = None
+        ############################################################################
+        # TODO: Реализуйте прямой проход полносвязной сети: вычислите оценки       #
+        # классов для X и сохраните их в переменной scores.                        #
+        ############################################################################
+        caches = []
+        out = X.reshape(X.shape[0], -1)
+        for i in range(1, self.num_layers):
+            W = self.params[f"W{i}"]
+            b = self.params[f"b{i}"]
+            out, fc_cache = affine_forward(out, W, b)
+            out, relu_cache = relu_forward(out)
+            caches.append((fc_cache, relu_cache))
+        
+        W_last = self.params[f"W{self.num_layers}"]
+        b_last = self.params[f"b{self.num_layers}"]
+        scores, fc_cache_last = affine_forward(out, W_last, b_last)
+        ############################################################################
+        #                            КОНЕЦ ВАШЕГО КОДА                             #
+        ############################################################################
+
+        # В режиме тестирования сразу возвращаем оценки.
+        if mode == "test":
+            return scores
+
+        loss, grads = 0.0, {}
+        ############################################################################
+        # TODO: Реализуйте обратный проход полносвязной сети. Сохраните значение   #
+        # функции потерь в переменной loss, а градиенты — в словаре grads.         #
+        # Потери на данных (data loss) вычисляйте с помощью softmax и следите,     #
+        # чтобы grads[k] содержал градиенты для self.params[k]. Не забудьте        #
+        # добавить L2-регуляризацию!                                               #
+        #                                                                          #
+        # ПРИМЕЧАНИЕ: чтобы ваша реализация совпала с эталонной и прошла           #
+        # проверки в ноутбуке, L2-регуляризация должна включать множитель 0.5      #
+        # (он упрощает выражение для градиента).                                   #
+        ############################################################################
+        loss, dscores = softmax_loss(scores, y)
+        grads = {}
+        
+        dout, dW, db = affine_backward(dscores, fc_cache_last)
+        grads[f"W{self.num_layers}"] = dW + self.reg * W_last
+        grads[f"b{self.num_layers}"] = db
+        
+        for i in reversed(range(1, self.num_layers)):
+            fc_cache, relu_cache = caches[i - 1]
+            dout = relu_backward(dout, relu_cache)
+            dout, dW, db = affine_backward(dout, fc_cache)
+            W = self.params[f"W{i}"]
+            grads[f"W{i}"] = dW + self.reg * W
+            grads[f"b{i}"] = db
+        
+        for i in range(1, self.num_layers + 1):
+            W = self.params[f"W{i}"]
+            loss += 0.5 * self.reg * np.sum(W ** 2)
+        ############################################################################
+        #                            КОНЕЦ ВАШЕГО КОДА                             #
+        ############################################################################
+
+        return loss, grads
+
+    def save(self, fname):
+      """Сохраняет параметры модели."""
+      fpath = os.path.join(os.path.dirname(__file__), "../saved/", fname)
+      params = self.params
+      np.save(fpath, params)
+      print(fname, "сохранён.")
+    
+    def load(self, fname):
+      """Загружает параметры модели."""
+      fpath = os.path.join(os.path.dirname(__file__), "../saved/", fname)
+      if not os.path.exists(fpath):
+        print(fname, "не найден.")
+        return False
+      else:
+        params = np.load(fpath, allow_pickle=True).item()
+        self.params = params
+        print(fname, "загружен.")
+        return True
